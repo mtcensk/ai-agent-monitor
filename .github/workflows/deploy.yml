@@ -1,0 +1,48 @@
+name: deploy-to-vps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'deploy/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy agent to VPS and restart
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p 22522 -t ed25519 185.209.31.133 >> ~/.ssh/known_hosts 2>/dev/null
+
+          tar czf - src deploy/*.sh deploy/playbooks.json | ssh -i ~/.ssh/deploy_key -p 22522 root@185.209.31.133 '
+            set -e
+            rm -rf /tmp/agent_deploy && mkdir -p /tmp/agent_deploy
+            tar xzf - -C /tmp/agent_deploy
+
+            # Обновляем только код и плейбуки: app.env, state.json, логи не трогаем
+            cp /tmp/agent_deploy/src/*.py /app/ai_monitor/
+            cp /tmp/agent_deploy/deploy/*.sh /tmp/agent_deploy/deploy/playbooks.json /app/ai_monitor/
+            chmod +x /app/ai_monitor/*.sh
+
+            # Проверка синтаксиса до перезапуска
+            python3 -m py_compile /app/ai_monitor/*.py
+
+            cd /app/ai_monitor && ./ctl.sh restart
+            sleep 3
+            pgrep -f "python3 .*agent.py" > /dev/null && echo DEPLOY_OK || { echo DEPLOY_FAILED; exit 1; }
+          '
+
+      - name: Smoke check via agent logs
+        run: |
+          ssh -i ~/.ssh/deploy_key -p 22522 root@185.209.31.133 \
+            'tail -n 5 /app/ai_monitor/logs/agent.log 2>/dev/null || true'

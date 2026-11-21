@@ -1,0 +1,8 @@
+{
+  "folders": [
+    { "name": "ai-agent", "path": "." }
+  ],
+  "settings": {
+    "python.analysis.extraPaths": ["src"]
+  }
+}

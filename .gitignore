@@ -1,0 +1,11 @@
+# Секреты и состояние — только на сервере
+app.env
+!app.env.example
+state.json
+*.pid
+logs/
+reports/
+postmortems/
+deploy_marks/
+__pycache__/
+*.pyc

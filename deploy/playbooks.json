@@ -1,0 +1,45 @@
+{
+  "_readme": "Плейбуки авто-ремедиации агента ai_monitor. Версионируется вместе с кодом ([53]). Поле review_date обязательно; записи старше 6 мес. агент помечает как требующие ревизии ([124]). types: rss_growth (по истории метрик), proc_down (по пробам процессов).",
+  "playbooks": [
+    {
+      "name": "restart man_reporting при утечке RSS",
+      "type": "rss_growth",
+      "app_key": "man_rep",
+      "min_mb": 1500,
+      "grow_snapshots": 6,
+      "grow_mb": 300,
+      "action": "restart man_reporting",
+      "review_date": "2026-11-18",
+      "steps": "1. /metrics — динамика RSS man_reporting за сутки.\n2. /logs 50 — ошибки перед ростом потребления.\n3. Если утечка повторяется после рестарта — эскалация разработчику с графиком RSS."
+    },
+    {
+      "name": "restart cntsadmin при утечке RSS",
+      "type": "rss_growth",
+      "app_key": "cntsadmin",
+      "min_mb": 1500,
+      "grow_snapshots": 6,
+      "grow_mb": 300,
+      "action": "restart cntsadmin",
+      "review_date": "2026-11-18",
+      "steps": "1. /metrics — динамика RSS cntsadmin за сутки.\n2. Проверить сессии пользователей в админке.\n3. Если утечка повторяется после рестарта — эскалация разработчику."
+    },
+    {
+      "name": "restart man_reporting при падении процесса",
+      "type": "proc_down",
+      "probe_key": "процесс man_reporting_service не найден",
+      "down_sec": 180,
+      "action": "restart man_reporting",
+      "review_date": "2026-11-18",
+      "steps": "1. /logs 50 — причина падения в хвосте лога.\n2. Проверить watchdog.log — пытался ли cron-watchdog поднять сервис.\n3. Повторные падения — смотреть dmesg (OOM) и эскалировать."
+    },
+    {
+      "name": "restart cntsadmin при падении процесса",
+      "type": "proc_down",
+      "probe_key": "процесс CntsAdminCon не найден",
+      "down_sec": 180,
+      "action": "restart cntsadmin",
+      "review_date": "2026-11-18",
+      "steps": "1. Проверить лог /app/cntsadmin/logs/app.log.\n2. Проверить watchdog.log.\n3. Повторные падения — dmesg (OOM), эскалация разработчику."
+    }
+  ]
+}

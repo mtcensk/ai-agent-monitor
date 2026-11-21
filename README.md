@@ -39,12 +39,14 @@ ai-agent/
 
 ## Поток внесения изменений
 
-1. Правка кода в `src/` локально.
-2. Заливка на сервер (из папки со скриптом `ssh_tool.py`):
-   `python ssh_tool.py upload src/<file>.py /app/ai_monitor/<file>.py`
-3. Проверка синтаксиса: `python3 -m py_compile /app/ai_monitor/<file>.py`
-4. `cd /app/ai_monitor && ./ctl.sh restart`
-5. Регрессия: команда `status` агенту в Telegram.
+Автоматический (основной): правка кода в `src/` или `deploy/` → `git push` в `main` →
+GitHub Actions (`.github/workflows/deploy.yml`) заливает код на сервер по SSH,
+проверяет синтаксис (`py_compile`), перезапускает агента (`ctl.sh restart`) и
+контролирует, что процесс поднялся. Статус — вкладка **Actions** в репозитории.
+`app.env`, `state.json`, логи и отчёты деплой не затрагивает.
+
+Ручной (резервный): залить файл на сервер → `python3 -m py_compile` →
+`cd /app/ai_monitor && ./ctl.sh restart`.
 
 ## Документация
 

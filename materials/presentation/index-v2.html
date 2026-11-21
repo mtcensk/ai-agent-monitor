@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-помощник эксплуатации тестового стенда</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0A2878;
+  --navy-2:#071B52;
+  --accent:#009FDF;
+  --accent-2:#33BFFF;
+  --bg:#F5F8FC;
+  --card:#FFFFFF;
+  --ink:#17233B;
+  --muted:#5A6B85;
+  --line:#DCE5F2;
+  --ok:#1A7F37;
+  --warn:#B25E09;
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font:16px/1.6 'Golos Text','Segoe UI',Arial,sans-serif;
+  color:var(--ink);background:var(--navy-2);
+  -webkit-font-smoothing:antialiased;overflow:hidden;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{cursor:pointer;font:inherit}
+
+/* ---------- каркас ---------- */
+.deck{position:fixed;inset:0}
+.slide{
+  position:absolute;inset:0;display:none;
+  background:var(--bg);overflow-y:auto;
+}
+.slide.active{display:block}
+.slide-inner{
+  max-width:1120px;margin:0 auto;min-height:100%;
+  padding:clamp(56px,7vh,84px) clamp(18px,4vw,48px) clamp(72px,9vh,96px);
+  display:flex;flex-direction:column;justify-content:center;
+}
+.slide.dark{background:
+  radial-gradient(900px 500px at 85% -10%, rgba(0,159,223,.28), transparent 60%),
+  radial-gradient(700px 420px at -10% 110%, rgba(51,191,255,.16), transparent 55%),
+  linear-gradient(160deg,var(--navy) 0%,var(--navy-2) 100%);
+  color:#fff}
+.slide.dark .muted{color:#B9C8E8}
+.slide.dark h2,.slide.dark h1{color:#fff}
+
+h1{font-size:clamp(1.9rem,4.2vw,3.1rem);font-weight:800;line-height:1.15;letter-spacing:-.01em}
+h2{font-size:clamp(1.45rem,2.8vw,2.1rem);font-weight:700;line-height:1.2;color:var(--navy);margin-bottom:6px}
+h3{font-size:1.06rem;font-weight:700;color:var(--navy)}
+.kicker{font-size:.8rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+.lead{font-size:clamp(1rem,1.6vw,1.2rem);color:var(--muted);max-width:62ch}
+.muted{color:var(--muted)}
+.rule{width:64px;height:4px;border-radius:2px;margin:14px 0 22px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+
+/* ---------- компоненты ---------- */
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.g5{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;
+  box-shadow:0 1px 3px rgba(10,40,120,.06)}
+.card h3{margin-bottom:6px}
+.card .num{font-size:1.9rem;font-weight:800;color:var(--accent);line-height:1.1}
+.card .num small{font-size:.85rem;font-weight:600;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);font-size:.86rem;font-weight:600}
+.slide:not(.dark) .chip{background:#EAF3FD;border-color:#C9E4F8;color:var(--navy)}
+ul.tight{list-style:none}
+ul.tight li{padding-left:22px;position:relative;margin:7px 0}
+ul.tight li::before{content:"";position:absolute;left:2px;top:.62em;width:8px;height:8px;border-radius:2px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+table{display:block;width:100%;overflow-x:auto;border-collapse:collapse;font-size:.92rem;background:var(--card);border-radius:var(--radius);overflow:hidden}
+table tbody{display:table;width:100%;min-width:560px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:var(--navy);color:#fff;font-weight:600;border-color:var(--navy)}
+tr:nth-child(even) td{background:#F8FBFE}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.74rem;font-weight:700;letter-spacing:.04em}
+.tag.ok{background:#E3F4E8;color:var(--ok)}
+.tag.warn{background:#FBF0DD;color:var(--warn)}
+.tag.info{background:#EAF3FD;color:var(--navy)}
+code,.mono{font-family:'Cascadia Code',Consolas,monospace;font-size:.86em;background:#EEF3FA;
+  padding:1px 6px;border-radius:5px;color:var(--navy-2)}
+.slide.dark code{background:rgba(255,255,255,.14);color:#EAF3FF}
+
+/* ---------- схема архитектуры ---------- */
+.arch{display:flex;flex-direction:column;gap:12px;margin-top:8px}
+.arch .tier{display:grid;gap:10px}
+.arch .t3{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.arch .t5{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.arch .t6{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.box{border-radius:12px;padding:12px 14px;font-size:.88rem;line-height:1.35;
+  border:1px solid var(--line);background:var(--card)}
+.box b{display:block;font-size:.94rem;color:var(--navy)}
+.box.navy{background:var(--navy);border-color:var(--navy);color:#D7E4FF}
+.box.navy b{color:#fff}
+.box.accent{background:#EAF3FD;border-color:#AFD8F5}
+.arrow{text-align:center;color:var(--accent);font-weight:800;font-size:1.15rem;line-height:1}
+
+/* ---------- навигация ---------- */
+.hud{position:fixed;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;gap:14px;
+  padding:12px clamp(14px,3vw,32px);pointer-events:none}
+.hud .brand{font-size:.78rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.slide.dark ~ .hud .brand,.on-dark .brand{color:#B9C8E8}
+.hud .bar{flex:1;height:3px;border-radius:2px;background:rgba(90,107,133,.25);overflow:hidden}
+.hud .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  transition:width .2s ease-out}
+.hud .cnt{font-size:.82rem;font-weight:600;color:var(--muted);min-width:56px;text-align:right;font-variant-numeric:tabular-nums}
+.nav{position:fixed;bottom:0;left:0;right:0;z-index:10;display:flex;justify-content:space-between;
+  padding:14px clamp(14px,3vw,32px);pointer-events:none}
+.nav button{
+  pointer-events:auto;display:inline-flex;align-items:center;gap:8px;
+  padding:10px 18px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(255,255,255,.92);color:var(--navy);font-weight:600;font-size:.9rem;
+  box-shadow:0 2px 8px rgba(10,40,120,.10);transition:transform .15s ease-out,background .15s}
+.nav button:hover{background:#fff;transform:translateY(-1px)}
+.nav button:active{transform:translateY(0)}
+.nav button.next{background:var(--navy);color:#fff;border-color:var(--navy)}
+.nav button.next:hover{background:var(--navy-2)}
+.nav button[disabled]{opacity:.35;cursor:default;transform:none}
+.hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:9;
+  font-size:.74rem;color:var(--muted);pointer-events:none}
+@media (max-width:640px){.hint{display:none}}
+
+/* ---------- печать ---------- */
+@media print{
+  body{overflow:visible;background:#fff}
+  .deck{position:static}
+  .slide{position:static;display:block;overflow:visible;page-break-after:always;min-height:auto}
+  .slide-inner{min-height:auto;padding:40px 32px}
+  .hud,.nav,.hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- ================= 1. Титул ================= -->
+<section class="slide dark active">
+  <div class="slide-inner">
+    <div class="kicker">Тестовый стенд · CntsAdminCon + man_reporting_service</div>
+    <h1>AI-помощник эксплуатации<br>тестового стенда</h1>
+    <div class="rule"></div>
+    <p class="lead" style="color:#B9C8E8">Берёт на себя рутину — наблюдение, первичную диагностику,
+      типовое восстановление и отчётность. Инженер остаётся в контуре:
+      правила задаёт человек, нетиповые решения — тоже человек.</p>
+    <div class="chips">
+      <span class="chip">Экономия 8–12 ч/нед на инженера</span>
+      <span class="chip">MTTD ≤ 60 с</span>
+      <span class="chip">Контроль у человека</span>
+      <span class="chip">Telegram-интерфейс</span>
+      <span class="chip">20+ практик Google SRE</span>
+      <span class="chip">Self-hosted, zero license</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 2. Проблема ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Проблема</div>
+    <h2>Куда уходит рабочее время инженера стенда</h2>
+    <div class="rule"></div>
+    <div class="grid g2">
+      <div class="card"><h3>Ручные обходы — каждое утро</h3>
+        <p class="muted">Сервисы живы? Место на диске? Ошибки в логах? Отчёты отработали?
+        30–45 минут в день на проверки, которые может делать скрипт.</p></div>
+      <div class="card"><h3>Первичная диагностика — вручную</h3>
+        <p class="muted">Сбор фактов по инциденту — логи, метрики, трейсы, недавние деплои —
+        самая механическая и самая долгая часть расследования.</p></div>
+      <div class="card"><h3>Ночной сбой = утреннее расследование</h3>
+        <p class="muted">Регресс упал в 3 ночи. Утром — 1–3 часа восстановления картины
+        по холодным следам вместо работы по горячим фактам.</p></div>
+      <div class="card"><h3>Отчётность собирается руками</h3>
+        <p class="muted">Статус за неделю, цифры надёжности, post-mortem инцидента —
+        часы на скриншоты графиков и копипаст в документы.</p></div>
+    </div>
+    <p class="muted" style="margin-top:16px">Это не инженерная экспертиза и не дежурная смена —
+    это рутина вокруг них. Именно её мы и убираем.</p>
+  </div>
+</section>
+
+<!-- ================= 3. Принцип ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Принцип</div>
+    <h2>Помощник, а не замена: разделение ролей</h2>
+    <div class="rule"></div>
+    <div class="grid g2">
+      <div class="card"><h3>🤖 Агент делает</h3>
+        <ul class="tight muted">
+          <li>Непрерывно наблюдает: пробы, метрики, логи, трейсы — 24/7, без усталости</li>
+          <li>Собирает факты по инциденту и готовит гипотезу причины (LLM)</li>
+          <li>Выполняет типовые действия по плейбукам, утверждённым человеком</li>
+          <li>Пишет черновики: дайджесты, отчёты, post-mortem</li>
+          <li>Эскалирует: нетиповое — человеку, с готовым досье</li>
+        </ul></div>
+      <div class="card"><h3>🧑‍💻 Человек решает</h3>
+        <ul class="tight muted">
+          <li>Утверждает плейбуки и пороги — это код-ревью, а не настройка «вслепую»</li>
+          <li>Разбирает нетиповые инциденты и принимает архитектурные решения</li>
+          <li>Меняет код и конфигурацию приложений — агент этого не делает никогда</li>
+          <li>Подтверждает рискованные действия (<code>/confirm</code>), принимает инциденты (<code>/ack</code>)</li>
+          <li>Делает выводы из post-mortem и решает, что чинить навсегда</li>
+        </ul></div>
+    </div>
+    <p class="muted" style="margin-top:16px">Агент не снимает ответственность с инженера —
+    он возвращает ему время на работу, которая действительно требует инженера.</p>
+  </div>
+</section>
+
+<!-- ================= 4. Решение в цифрах ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Решение</div>
+    <h2>Что меняется в рабочем дне</h2>
+    <div class="rule"></div>
+    <div class="grid g3">
+      <div class="card"><div class="num">5 <small>мин</small></div><h3>Утренний обход</h3>
+        <p class="muted">Дайджест в Telegram в 9:00: состояние стенда, динамика метрик, инциденты за ночь — вместо часа ручных проверок.</p></div>
+      <div class="card"><div class="num">≤ 60 <small>с</small></div><h3>До первого факта</h3>
+        <p class="muted">Сбой обнаружен за один цикл проб; алерт приходит уже с LLM-гипотезой причины и трейсами.</p></div>
+      <div class="card"><div class="num">0 <small>мин</small></div><h3>Типовой перезапуск</h3>
+        <p class="muted">Упавший процесс поднимает утверждённый плейбук; человек получает отчёт о случившемся, а не аварийный звонок.</p></div>
+      <div class="card"><div class="num">10–15 <small>мин</small></div><h3>Post-mortem</h3>
+        <p class="muted">Ревью готового черновика: хронология, метрики окна, первопричина, action items — вместо написания с нуля.</p></div>
+      <div class="card"><div class="num">×12</div><h3>Быстрее реакция</h3>
+        <p class="muted">Минуты вместо часов на обнаружение и восстановление типовых сбоев.</p></div>
+      <div class="card"><div class="num">8–12 <small>ч/нед</small></div><h3>Возврат времени</h3>
+        <p class="muted">Оценка высвобождаемых трудозатрат на одного инженера стенда — время уходит на развитие, а не на рутину.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 5. Пять блоков ================= -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="kicker">Функциональная карта</div>
+    <h2>Пять блоков функционала</h2>
+    <div class="rule"></div>
+    <div class="grid g5">
+      <div class="card"><div class="num">01</div><h3>Наблюдение</h3>
+        <p class="muted">Пробы, метрики, логи, трейсы, SLO — весь стенд под непрерывным контролем.</p></div>
+      <div class="card"><div class="num">02</div><h3>Диагностика</h3>
+        <p class="muted">LLM-разбор инцидентов, RAG по истории, аномалии, прогнозы, MTTRC.</p></div>
+      <div class="card"><div class="num">03</div><h3>Реагирование</h3>
+        <p class="muted">Плейбуки, авто-рестарт типовых сбоев, error-budget policy, ack/mute.</p></div>
+      <div class="card"><div class="num">04</div><h3>Отчётность</h3>
+        <p class="muted">Дайджесты, HTML-отчёты с дашбордами, черновики post-mortem, SLO-отчёты.</p></div>
+      <div class="card"><div class="num">05</div><h3>Самонаблюдение</h3>
+        <p class="muted">Агент следит за собой: heartbeat, бюджеты, безопасность, PII.</p></div>
+    </div>
+    <p class="muted" style="margin-top:20px">Далее — каждый блок подробно, затем границы ответственности, экономика трудозатрат и сценарий живой демонстрации.</p>
+  </div>
+</section>
+
+<!-- ================= 6. Блок 1: Наблюдение ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Блок 01</div>
+    <h2>Наблюдение: стенд под непрерывным контролем</h2>
+    <div class="rule"></div>
+    <div class="grid g2">
+      <div class="card"><h3>Доступность — каждые 60 с</h3>
+        <ul class="tight muted">
+          <li>HTTP-пробы <code>/health</code> man_reporting и <code>/login</code> cntsadmin с замером латентности</li>
+          <li>Контроль процессов (pgrep) и PostgreSQL (<code>pg_isready</code>)</li>
+          <li>Отдельные пробы стека мониторинга: Grafana, Prometheus, Tempo, OTel Collector</li>
+        </ul></div>
+      <div class="card"><h3>Метрики — каждые 5 мин</h3>
+        <ul class="tight muted">
+          <li>ОС: диск, inode, память, swap, load, CPU, uptime</li>
+          <li>Процессы: RSS и потоки обоих приложений</li>
+          <li>PostgreSQL: размер БД, соединения, RED-метрики (latency, locks, длинные запросы)</li>
+          <li>Инфра-гигиена: NTP, DNS, свежесть бэкапов, генератор тестовых данных</li>
+        </ul></div>
+      <div class="card"><h3>Логи и трейсы</h3>
+        <ul class="tight muted">
+          <li>Инкрементальный tail логов (10 с) с дедупликацией ERROR-блоков</li>
+          <li>Трейсы из Tempo автоматически прикладываются к инциденту</li>
+          <li>Loki: drill-down из трейса в логи сервиса (tracesToLogs в Grafana)</li>
+        </ul></div>
+      <div class="card"><h3>SLO как у больших</h3>
+        <ul class="tight muted">
+          <li>SLI по каждой пробе, доступность за 30 дней к цели 99,5%</li>
+          <li>Error budget и burn rate: быстрый (1 ч) и медленный (6 ч) алерты</li>
+          <li>Контроль 50 тестовых отчётов man_reporting (Complete/Error)</li>
+        </ul></div>
+    </div>
+    <p class="muted" style="margin-top:14px">Всё это инженер проверял бы вручную — раз в день и с пропусками.
+    Агент проверяет непрерывно и ничего не забывает.</p>
+  </div>
+</section>
+
+<!-- ================= 7. Блок 2: Диагностика ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Блок 02</div>
+    <h2>Диагностика: первичный разбор — готов к приходу инженера</h2>
+    <div class="rule"></div>
+    <div class="grid g2">
+      <div class="card"><h3>Досье по инциденту, а не голый алерт</h3>
+        <p class="muted">На каждый инцидент LLM получает факты — пробы, трейсы, метрики, логи —
+        и отвечает гипотезой первопричины. Инженер начинает с готовой картины, а не со сбора фактов.</p></div>
+      <div class="card"><h3>RAG: память по прошлым инцидентам</h3>
+        <p class="muted">Похожие эпизоды из журнала инцидентов подмешиваются в контекст —
+        «мы это уже видели, помогло вот что». Опыт команды перестаёт зависеть от памяти людей.</p></div>
+      <div class="card"><h3>Корреляция сигналов</h3>
+        <p class="muted">Каскадные сбои (приложение + БД + стек) схлопываются в один инцидент —
+        один осмысленный алерт вместо десяти шумных.</p></div>
+      <div class="card"><h3>Аномалии и прогнозы</h3>
+        <p class="muted">Детектор отклонений &gt;2σ от суточной нормы (память, RSS, load);
+        линейный прогноз трендов: «диск пересечёт порог через ~N часов» — время спланировать работы.</p></div>
+      <div class="card"><h3>Метрики скорости диагноза</h3>
+        <p class="muted">MTTRC в двух видах: до первой гипотезы (секунды) и до подтверждённой
+        первопричины (после post-mortem). Честное измерение наблюдаемости.</p></div>
+      <div class="card"><h3>Гигиена алертов</h3>
+        <p class="muted">Приоритеты P1–P3, дедупликация, троттлинг, re-alert по открытым
+        инцидентам каждые 15 мин, отчёт о подавленных после mute. Меньше шума — больше доверия.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 8. Блок 3: Реагирование ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Блок 03</div>
+    <h2>Реагирование: типовое — автоматически, под контролем человека</h2>
+    <div class="rule"></div>
+    <div class="grid g2">
+      <div class="card"><h3>Восстановление типовых падений</h3>
+        <p class="muted">Процесс упал и не поднялся за 180 с → утверждённый плейбук перезапуска.
+        Человек получает отчёт о случившемся и черновик post-mortem — решение о корневом исправлении за ним.</p></div>
+      <div class="card"><h3>Плейбуки как код</h3>
+        <p class="muted">Декларативный <code>playbooks.json</code>: условие → действия → лимиты.
+        Утверждаются человеком через код-ревью, версионируются в git, дата ревизии под контролем.</p></div>
+      <div class="card"><h3>Безопасная автономность</h3>
+        <p class="muted">Режимы dry-run / enforce переключает владелец; каждое действие — через очередь
+        задач с аудитом; лимиты запусков в сутки; при выжигании error budget автономия сужается автоматически.</p></div>
+      <div class="card"><h3>Хаос-инженерия для тренировки</h3>
+        <p class="muted">Команда <code>/chaos kill</code> поднимает учебный инцидент:
+        команда отрабатывает реакцию и проверяет весь конвейер — детект, алерт, рестарт, метрики.</p></div>
+      <div class="card"><h3>Управление из Telegram</h3>
+        <p class="muted"><code>/ack</code> — принять инцидент, <code>/mute</code> — тишина с отчётом
+        о подавленном, <code>/restart</code> — действие с подтверждением, <code>/autonomy</code> — режим.</p></div>
+      <div class="card"><h3>Деплой под контролем</h3>
+        <p class="muted">Smoke-пробы после деплоя: серия запросов по ключевым endpoint'ам,
+        вердикт ✅/🔥 с рекомендацией отката — решение об откате принимает человек.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 9. Блок 4: Отчётность ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Блок 04</div>
+    <h2>Отчётность: черновики готовы — остаётся ревью</h2>
+    <div class="rule"></div>
+    <div class="grid g2">
+      <div class="card"><h3>Ежедневный дайджест</h3>
+        <p class="muted">В 9:00 в Telegram: состояние стенда, метрики с динамикой за сутки,
+        инциденты, фото дашбордов Grafana. Утро начинается с картины, а не со сбора картины.</p></div>
+      <div class="card"><h3>HTML-отчёт по запросу</h3>
+        <p class="muted"><code>/report</code> — самодостаточный HTML: таблицы метрик, дашборды
+        картинками, надёжность за 7 дней. Можно переслать руководству как есть.</p></div>
+      <div class="card"><h3>Черновик post-mortem</h3>
+        <p class="muted">Простой ≥ 5 мин → документ с хронологией, метриками окна ±30 мин,
+        LLM-разбором и action items. Инженер проверяет и дополняет — 10–15 минут вместо 1–2 часов.</p></div>
+      <div class="card"><h3>Надёжность в цифрах</h3>
+        <p class="muted">MTTD, MTTR, MTTRC (гипотеза и подтверждённая), доступность SLO,
+        календарный срез бюджета ошибок 1-го числа месяца. Готовый материал для статус-встреч.</p></div>
+    </div>
+    <div class="chips">
+      <span class="chip">/status</span><span class="chip">/report</span><span class="chip">/metrics</span>
+      <span class="chip">/slo</span><span class="chip">/trace</span><span class="chip">/errors</span>
+      <span class="chip">/postmortem</span><span class="chip">/ask</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 10. Блок 5: Самонаблюдение ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Блок 05</div>
+    <h2>Самонаблюдение и безопасность: кто сторожит сторожа</h2>
+    <div class="rule"></div>
+    <div class="grid g2">
+      <div class="card"><h3>Агент под наблюдением</h3>
+        <ul class="tight muted">
+          <li>Heartbeat-файл + внешний probe по cron — молчание агента детектируется извне</li>
+          <li>Watchdog перезапускает агента; агент — приложения; система самовосстанавливается</li>
+          <li>Учёт сбоев собственных каналов: Telegram и LLM под счётчиками</li>
+        </ul></div>
+      <div class="card"><h3>Бюджеты и форс-мажоры</h3>
+        <ul class="tight muted">
+          <li>Бюджет LLM-вызовов: статусы ok / caution / freeze с честной деградацией</li>
+          <li>Нет LLM → шаблонные отчёты; нет Telegram → журнал; нет стека — алерт</li>
+          <li>Агент никогда не падает молча: каждая ветка деградации описана</li>
+        </ul></div>
+      <div class="card"><h3>Безопасность доступа</h3>
+        <ul class="tight muted">
+          <li>Белый список Telegram user id: посторонним бот не отвечает и не выполняет команд</li>
+          <li>Попытки доступа логируются и считаются (<code>tg_denied</code>)</li>
+          <li>SSH на нестандартном порту, ключи вместо паролей</li>
+        </ul></div>
+      <div class="card"><h3>Защита данных</h3>
+        <ul class="tight muted">
+          <li>PII-маскирование (email, телефоны, карты) до LLM и Telegram</li>
+          <li>Строки подключений в БД — AES-256-GCM (конверт enc:v1)</li>
+          <li>Read-only учётка для отчётных запросов, ежедневные бэкапы БД</li>
+        </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 11. Архитектура ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Архитектура</div>
+    <h2>Семь модулей-ролей, одна шина, пять циклов</h2>
+    <div class="rule"></div>
+    <div class="arch">
+      <div class="tier t3">
+        <div class="box navy"><b>Telegram</b>команды и алерты (whitelist)</div>
+        <div class="box navy"><b>LLM API</b>диагностика, дайджест, /ask</div>
+        <div class="box navy"><b>Grafana</b>рендеры дашбордов в отчёты</div>
+      </div>
+      <div class="arrow">↕ &nbsp;&nbsp;↕ &nbsp;&nbsp;↕</div>
+      <div class="tier t6">
+        <div class="box accent"><b>agent.py</b>оркестратор, 5 циклов</div>
+        <div class="box"><b>observer</b>пробы, метрики, логи, трейсы</div>
+        <div class="box"><b>diagnostician</b>LLM, RAG, SLO, аномалии</div>
+        <div class="box"><b>executor</b>плейбуки, действия</div>
+        <div class="box"><b>reporter</b>отчёты, post-mortem</div>
+        <div class="box"><b>common + bus</b>конфиг, состояние, очередь</div>
+      </div>
+      <div class="arrow">↕ &nbsp;&nbsp;↕ &nbsp;&nbsp;↕</div>
+      <div class="tier t5">
+        <div class="box"><b>CntsAdminCon</b>:5000 · пробы, метрики, логи, трейсы</div>
+        <div class="box"><b>man_reporting</b>:5080 · пробы, метрики, отчёты</div>
+        <div class="box"><b>PostgreSQL</b>RED-метрики, бэкапы, генератор данных</div>
+        <div class="box"><b>Prometheus</b>метрики ОС/БД/процессов</div>
+        <div class="box"><b>Tempo + Loki</b>трейсы ↔ логи (drill-down)</div>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:14px">Инвариант: менять стенд может только <code>executor</code> через очередь задач;
+    наблюдатель и диагност ничего не исполняют. Python 3, только stdlib — нулевая зависимость от фреймворков.</p>
+  </div>
+</section>
+
+<!-- ================= 12. Стек наблюдаемости ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Стек наблюдаемости</div>
+    <h2>Prometheus + Grafana + Tempo + Loki — открытый стек без лицензий</h2>
+    <div class="rule"></div>
+    <div class="grid g3">
+      <div class="card"><h3>Метрики</h3>
+        <p class="muted">Prometheus + node/postgres/process exporters. Три дашборда Grafana:
+        системный, прикладной и единый сводный — их фото прилетают в Telegram.</p></div>
+      <div class="card"><h3>Трейсы</h3>
+        <p class="muted">OpenTelemetry Collector с tail sampling: ошибки и медленные (>2 с) — 100%,
+        остальные — 15%. Хранилище Tempo. Трейсы прикладываются к инцидентам.</p></div>
+      <div class="card"><h3>Логи</h3>
+        <p class="muted">Promtail собирает файловые логи приложений и агента в Loki
+        (склейка многострочных stack trace). Из трейса — drill-down в логи сервиса.</p></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>Связанность сигналов (correlation)</h3>
+      <p class="muted">В Grafana настроены переходы: трейс → метрики (tracesToMetrics) и трейс → логи
+      (tracesToLogsV2, маппинг <code>service.name</code> → лейбл <code>service</code>, окно ±5 мин).
+      Расследование инцидента — это клики, а не grep по серверу.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 13. SRE-практики ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Методология</div>
+    <h2>Построен по книге: 20+ практик SRE в коде</h2>
+    <div class="rule"></div>
+    <table>
+      <tr><th>Практика</th><th>Как реализовано</th><th>Источник</th></tr>
+      <tr><td>Четыре золотых сигнала</td><td>Латентность проб, трафик, ошибки, насыщенность — в снимке каждые 5 мин</td>
+          <td><a href="https://sre.google/sre-book/monitoring-distributed-systems/" target="_blank" rel="noopener">Google SRE Book, гл. 6</a></td></tr>
+      <tr><td>SLO/SLI и error budget</td><td>Цель 99,5% за 30 дней; burn rate 6×/2×; budget policy сужает автономию</td>
+          <td><a href="https://sre.google/workbook/implementing-slos/" target="_blank" rel="noopener">SRE Workbook, гл. 2</a></td></tr>
+      <tr><td>Алертинг на симптомы</td><td>Burn rate fast/slow, re-alert, ack/mute, отчёт о подавленных</td>
+          <td><a href="https://sre.google/workbook/alerting-on-slos/" target="_blank" rel="noopener">SRE Workbook, гл. 5</a></td></tr>
+      <tr><td>Постмортемы без обвинений</td><td>Авто-черновик post-mortem ≥ 300 с: хронология, первопричина, action items</td>
+          <td><a href="https://sre.google/sre-book/postmortem-culture/" target="_blank" rel="noopener">Google SRE Book, гл. 15</a></td></tr>
+      <tr><td>MTTD / MTTR / MTTRC</td><td>Измеряются по факту и публикуются в отчётах (гипотеза + подтверждённая)</td>
+          <td><a href="https://www.oreilly.com/library/view/seeking-sre/9781491978856/" target="_blank" rel="noopener">Seeking SRE (O’Reilly)</a></td></tr>
+      <tr><td>RED-метрики зависимостей</td><td>PostgreSQL: latency, активные запросы, locks, % соединений</td>
+          <td><a href="https://grafana.com/blog/2018/08/02/the-red-method-how-to-instrument-your-services/" target="_blank" rel="noopener">Grafana Labs, RED</a></td></tr>
+      <tr><td>USE-метод (ресурсы)</td><td>Утилизация, насыщенность, ошибки ОС и «скучные» ресурсы: NTP, DNS, inode</td>
+          <td><a href="https://www.brendangregg.com/usemethod.html" target="_blank" rel="noopener">Brendan Gregg, USE</a></td></tr>
+      <tr><td>Хаос-инженерия</td><td>Учебные инциденты /chaos kill: тренировка детекта и восстановления</td>
+          <td><a href="https://principlesofchaos.org/" target="_blank" rel="noopener">Principles of Chaos</a></td></tr>
+      <tr><td>Устранение toil</td><td>Рутинные проверки, сбор отчётов и первичная диагностика автоматизированы —
+          ядро философии SRE: освободить инженеров для инженерной работы</td>
+          <td><a href="https://sre.google/sre-book/eliminating-toil/" target="_blank" rel="noopener">Google SRE Book, гл. 5</a></td></tr>
+      <tr><td>Наблюдаемость: трейсы/логи</td><td>OTel tail sampling, Tempo, Loki, tracesToLogs/tracesToMetrics</td>
+          <td><a href="https://opentelemetry.io/docs/" target="_blank" rel="noopener">OpenTelemetry</a> · <a href="https://grafana.com/docs/tempo/latest/" target="_blank" rel="noopener">Tempo</a> · <a href="https://grafana.com/docs/loki/latest/" target="_blank" rel="noopener">Loki</a></td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================= 14. Границы ответственности ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Границы ответственности</div>
+    <h2>Чего агент не делает — и это by design</h2>
+    <div class="rule"></div>
+    <div class="grid g2">
+      <div class="card"><h3>Не меняет приложения</h3>
+        <p class="muted">Никогда не правит код и конфигурацию сервисов. Только наблюдает
+        и выполняет заранее утверждённые человеком действия.</p></div>
+      <div class="card"><h3>Не решает нетиповое</h3>
+        <p class="muted">Нестандартный инцидент — эскалация инженеру с готовым досье:
+        факты, гипотеза, трейсы. Решение — за человеком.</p></div>
+      <div class="card"><h3>Не действует без правил</h3>
+        <p class="muted">Каждый плейбук утверждается человеком. Новые действия стартуют
+        в dry-run: агент показывает, что бы он сделал, — и ждёт одобрения.</p></div>
+      <div class="card"><h3>Не заменяет дежурную смену</h3>
+        <p class="muted">Если дежурство есть — агент снимает с него рутину и ложные подъёмы:
+        типовое чинится само, а человеку по P1 прилетает уже разобранный инцидент.</p></div>
+      <div class="card"><h3>Не скрывает свои действия</h3>
+        <p class="muted">Очередь задач с аудитом, подтверждения, <code>/ack</code>, <code>/mute</code>,
+        журнал в Loki: любое действие агента можно перечитать и проверить.</p></div>
+      <div class="card"><h3>Не работает без присмотра</h3>
+        <p class="muted">Сам находится под наблюдением: heartbeat с внешним probe, watchdog,
+        бюджет LLM-вызовов с честной деградацией в шаблонные отчёты.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 15. Экономика трудозатрат ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Экономический эффект</div>
+    <h2>Экономика трудозатрат: честная оценка</h2>
+    <div class="rule"></div>
+    <table>
+      <tr><th>Рутинная задача</th><th>Без агента</th><th>С агентом</th></tr>
+      <tr><td>Утренний обход стенда (сервисы, диски, логи, отчёты)</td>
+          <td>30–45 мин/день</td><td><b>5 мин</b> — чтение дайджеста в Telegram</td></tr>
+      <tr><td>Первичная диагностика инцидента (сбор фактов)</td>
+          <td>30–60 мин</td><td><b>5 мин</b> — разбор с гипотезой уже готов</td></tr>
+      <tr><td>Типовой перезапуск упавшего сервиса</td>
+          <td>15–30 мин + ожидание команды</td><td><b>0 мин</b> — плейбук + отчёт о случившемся</td></tr>
+      <tr><td>Еженедельная отчётность по стенду</td>
+          <td>1–2 ч/нед</td><td><b>0 мин</b> — HTML-отчёт формируется автоматически</td></tr>
+      <tr><td>Post-mortem инцидента</td>
+          <td>1–2 ч</td><td><b>10–15 мин</b> — ревью готового черновика</td></tr>
+      <tr><td>Разбор ночного сбоя</td>
+          <td>1–3 ч по холодным следам</td><td><b>разбор и артефакты ждут утром</b></td></tr>
+    </table>
+    <p class="muted" style="margin-top:14px"><b>Итого: 8–12 часов в неделю</b> на одного инженера стенда.
+    Это не сокращение ролей — это возврат времени на развитие стенда, автоматизацию тестов
+    и разбор реальных дефектов вместо механической работы.</p>
+  </div>
+</section>
+
+<!-- ================= 16. Дорожная карта ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Развитие</div>
+    <h2>Дорожная карта</h2>
+    <div class="rule"></div>
+    <div class="grid g2">
+      <div class="card"><h3>Q1 — глубина диагностики</h3>
+        <ul class="tight muted">
+          <li>Trace-id в логах .NET-приложений → точный drill-down трейс↔логи</li>
+          <li>Сезонные прогнозы Holt-Winters вместо линейного тренда</li>
+          <li>Авто-классификация причин инцидентов по подтверждённым MTTRC</li>
+        </ul></div>
+      <div class="card"><h3>Q2 — зрелое сотрудничество</h3>
+        <ul class="tight muted">
+          <li>Возврат в enforce после freeze — через подтверждение человеком (<code>/confirm</code>)</li>
+          <li>Хаос уровня 2: сетевые разрывы БД, задержки (iptables/tc)</li>
+          <li>Библиотека плейбуков из разобранных post-mortem — с утверждением человеком</li>
+        </ul></div>
+      <div class="card"><h3>Q3 — масштабирование</h3>
+        <ul class="tight muted">
+          <li>Мульти-стенд: один агент помогает команде на N стендах с федерацией статуса</li>
+          <li>Каталог стендовых метрик в Grafana provisioning</li>
+          <li>Шаблон внедрения «стенд за день» для соседних команд</li>
+        </ul></div>
+      <div class="card"><h3>Горизонт — AIOps</h3>
+        <ul class="tight muted">
+          <li>Предиктивные алерты по истории инцидентов</li>
+          <li>Авто-тюнинг порогов с ревью человеком (обучение порогов уже заложено)</li>
+          <li>Интеграция с ITSM: тикеты, эскалации, SLA-отчётность</li>
+        </ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 17. Демо: акты 1–3 ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Живая демонстрация · ~20 минут</div>
+    <h2>Сценарий демо — акты 1–3 (основные блоки)</h2>
+    <div class="rule"></div>
+    <p class="muted" style="margin-bottom:12px">Подготовка (2 мин): открыть Telegram-чат с ботом и Grafana
+    (<code>http://&lt;стенд&gt;:3000</code>, дашборды «Системный», «Прикладной», «Сводный»).</p>
+    <table>
+      <tr><th style="width:88px">Шаг</th><th>Действие</th><th>Что видит аудитория</th></tr>
+      <tr><td><b>Акт 1</b><br>3 мин<br><span class="tag info">Наблюдение</span></td>
+          <td>Команды <code>/status</code>, <code>/slo</code>, <code>/metrics</code></td>
+          <td>Здоровье приложений и стека одним сообщением; доступность 30 дней и error budget;
+          таблица метрик + фото дашбордов Grafana прямо в чате</td></tr>
+      <tr><td><b>Акт 2</b><br>5 мин<br><span class="tag info">Диагностика</span></td>
+          <td>Ломаем стенд: <code>/chaos kill man_reporting</code> + <code>/confirm</code>
+          (или остановить процесс руками)</td>
+          <td>За ≤ 60 с: 🔴 инцидент с LLM-анализом причины и трейсами Tempo.
+          Обращаем внимание: инженер получил готовое досье, а не голый алерт</td></tr>
+      <tr><td><b>Акт 3</b><br>4 мин<br><span class="tag info">Реагирование</span></td>
+          <td>Ничего не делаем — смотрим</td>
+          <td>Плейбук поднимает сервис → 🟢 восстановление с длительностью простоя;
+          при простое ≥ 5 мин — черновик post-mortem документом. Показываем <code>/autonomy</code>:
+          режимы dry-run → enforce переключает человек</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================= 18. Демо: акты 4–5 + доп ================= -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">Живая демонстрация · продолжение</div>
+    <h2>Сценарий демо — акты 4–5 и дополнительные</h2>
+    <div class="rule"></div>
+    <table>
+      <tr><th style="width:88px">Шаг</th><th>Действие</th><th>Что видит аудитория</th></tr>
+      <tr><td><b>Акт 4</b><br>3 мин<br><span class="tag info">Отчётность</span></td>
+          <td><code>/report</code>, открыть HTML-отчёт и черновик post-mortem</td>
+          <td>Самодостаточный HTML: метрики, дашборды картинками, MTTR/MTTD/MTTRC за 7 дней,
+          хронология инцидента и action items — остаётся ревью, а не написание с нуля</td></tr>
+      <tr><td><b>Акт 5</b><br>3 мин<br><span class="tag info">Управление</span></td>
+          <td><code>/ask</code> вопрос о стенде; с чужого Telegram-аккаунта написать боту</td>
+          <td>LLM отвечает по фактам стенда; чужому пользователю — тишина (whitelist),
+          в /status растёт счётчик отказов</td></tr>
+      <tr><td><b>Доп.</b><br>5 мин<br><span class="tag warn">По запросу</span></td>
+          <td>Grafana Explore → Tempo → «Logs for this span»; <code>/trace</code>;
+          <code>/mute</code> + истечение; <code>/bus</code>; smoke после <code>deploy_mark.sh</code></td>
+          <td>Drill-down трейс→логи сервиса; отчёт о подавленных алертах после mute;
+          очередь задач с аудитом; вердикт smoke-проб после деплоя</td></tr>
+    </table>
+    <p class="muted" style="margin-top:12px">Финал демо: инцидент разобран от детекта до черновика
+    post-mortem, типовое восстановление выполнено плейбуком — человек контролировал каждый шаг
+    и потратил 0 минут на рутину.</p>
+  </div>
+</section>
+
+<!-- ================= 19. Финал ================= -->
+<section class="slide dark">
+  <div class="slide-inner">
+    <div class="kicker">Внедрение</div>
+    <h2 style="color:#fff">Усильте команду за один день</h2>
+    <div class="rule"></div>
+    <div class="grid g3">
+      <div class="card"><h3>Что нужно</h3>
+        <p class="muted">Один Linux-VPS, Telegram-бот, доступ к LLM API. Стек наблюдаемости —
+        open source, ставится скриптом.</p></div>
+      <div class="card"><h3>Что адаптируется</h3>
+        <p class="muted">Пробы endpoint'ов, плейбуки действий, SLO-цели — декларативная конфигурация,
+        утверждается вашей командой.</p></div>
+      <div class="card"><h3>Что получает команда</h3>
+        <p class="muted">Инженер, который начинает день с готового дайджеста, а не с ручного обхода,
+        и тратит время на инженерную работу, а не на рутину.</p></div>
+    </div>
+    <div class="chips" style="margin-top:26px">
+      <span class="chip">Демо на живом стенде — 20 минут</span>
+      <span class="chip">Код и документация — в комплекте</span>
+      <span class="chip">Методология — Google SRE / Seeking SRE</span>
+    </div>
+  </div>
+</section>
+
+</div><!-- /deck -->
+
+<!-- HUD и навигация -->
+<div class="hud" id="hud">
+  <span class="brand">AI-помощник стенда</span>
+  <div class="bar"><i id="bar"></i></div>
+  <span class="cnt" id="cnt">1 / 19</span>
+</div>
+<div class="nav">
+  <button type="button" id="prev" aria-label="Предыдущий слайд">← Назад</button>
+  <button type="button" id="next" class="next" aria-label="Следующий слайд">Далее →</button>
+</div>
+<div class="hint">← → навигация · Home/End — в начало/конец · P — печать</div>
+
+<script>
+// Навигация слайдами: клавиатура, кнопки, свайп, hash-маршрутизация, прогресс-бар.
+// Инлайн — чтобы презентация работала и по file:// (открытие с диска).
+const slides = [...document.querySelectorAll('.slide')];
+const bar = document.getElementById('bar');
+const cnt = document.getElementById('cnt');
+const prev = document.getElementById('prev');
+const next = document.getElementById('next');
+const hud = document.getElementById('hud');
+
+let i = 0;
+
+function clamp(n) { return Math.max(0, Math.min(slides.length - 1, n)); }
+
+function show(n, push = true) {
+  i = clamp(n);
+  slides.forEach((s, k) => s.classList.toggle('active', k === i));
+  cnt.textContent = `${i + 1} / ${slides.length}`;
+  bar.style.width = `${((i + 1) / slides.length) * 100}%`;
+  prev.disabled = i === 0;
+  next.disabled = i === slides.length - 1;
+  hud.classList.toggle('on-dark', slides[i].classList.contains('dark'));
+  if (push) history.replaceState(null, '', `#${i + 1}`);
+  slides[i].scrollTop = 0;
+}
+
+prev.addEventListener('click', () => show(i - 1));
+next.addEventListener('click', () => show(i + 1));
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') show(i + 1);
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(i - 1);
+  else if (e.key === 'Home') show(0);
+  else if (e.key === 'End') show(slides.length - 1);
+  else if (e.key.toLowerCase() === 'p') window.print();
+});
+
+// свайп
+let touchX = null;
+document.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (touchX === null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(dx) > 48) show(dx < 0 ? i + 1 : i - 1);
+  touchX = null;
+}, { passive: true });
+
+// старт с hash (#5) при наличии
+const fromHash = parseInt((location.hash || '').slice(1), 10);
+show(Number.isFinite(fromHash) && fromHash > 0 ? fromHash - 1 : 0, false);
+</script>
+</body>
+</html>

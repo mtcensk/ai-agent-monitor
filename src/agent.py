@@ -474,6 +474,29 @@ def tg_allowed_uid(uid):
         allowed = {owner}
     return uid in allowed
 
+def notify_deploy():
+    """Уведомление об автодеплое. CI (GitHub Actions) кладёт рядом с кодом
+    deploy_info.json (sha коммита, сообщение, автор) ДО перезапуска агента.
+    При старте сравниваем sha с последним оповещённым — рассылаем один раз."""
+    try:
+        info = json.loads((BASE / "deploy_info.json").read_text(encoding="utf-8"))
+    except Exception:
+        return  # маркера нет (ручной перезапуск) — молчим
+    sha = info.get("sha")
+    if not sha or sha == STATE.get("deploy_notified_sha"):
+        return
+    STATE["deploy_notified_sha"] = sha
+    save_state()
+    msg = (info.get("msg") or "").strip()
+    short = info.get("short") or sha[:7]
+    try:
+        tg_send(f"🚀 Автодеплой: коммит <code>{esc(short)}</code>"
+                + (f" — {esc(msg)}" if msg else "")
+                + f"\n👤 {esc(info.get('actor') or '?')} · рестарт успешен, агент работает.",
+                parse_mode="HTML")
+    except Exception as e:
+        print(f"[deploy notify] {e}", flush=True)
+
 # ---------------------------------------------------------------- main
 if __name__ == "__main__":
     print(f"ai_monitor started {datetime.now(MSK):%Y-%m-%d %H:%M:%S} MSK", flush=True)
@@ -484,6 +507,7 @@ if __name__ == "__main__":
     threading.Thread(target=report_loop, daemon=True).start()
     threading.Thread(target=metrics_loop, daemon=True).start()
     threading.Thread(target=executor.executor_loop, daemon=True).start()
+    notify_deploy()
     if TELEGRAM_TOKEN:
         tg_poll()
     else:

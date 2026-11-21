@@ -2,6 +2,7 @@
 app.env
 !app.env.example
 state.json
+deploy_info.json
 *.pid
 logs/
 reports/

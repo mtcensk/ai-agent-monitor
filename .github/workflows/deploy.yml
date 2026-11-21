@@ -15,6 +15,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Build deploy marker
+        run: |
+          COMMIT_MSG="$(git log -1 --pretty=%s | sed 's/\\/\\\\/g; s/"/\\"/g')"
+          cat > deploy_info.json <<EOF
+          {"sha": "${GITHUB_SHA}", "short": "${GITHUB_SHA:0:7}", "msg": "${COMMIT_MSG}", "actor": "${GITHUB_ACTOR}", "ts": $(date +%s)}
+          EOF
+          cat deploy_info.json
+
       - name: Deploy agent to VPS and restart
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -24,7 +32,7 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p 22522 -t ed25519 185.209.31.133 >> ~/.ssh/known_hosts 2>/dev/null
 
-          tar czf - src deploy/*.sh deploy/playbooks.json | ssh -i ~/.ssh/deploy_key -p 22522 root@185.209.31.133 '
+          tar czf - src deploy/*.sh deploy/playbooks.json deploy_info.json | ssh -i ~/.ssh/deploy_key -p 22522 root@185.209.31.133 '
             set -e
             rm -rf /tmp/agent_deploy && mkdir -p /tmp/agent_deploy
             tar xzf - -C /tmp/agent_deploy
@@ -32,6 +40,8 @@ jobs:
             # Обновляем только код и плейбуки: app.env, state.json, логи не трогаем
             cp /tmp/agent_deploy/src/*.py /app/ai_monitor/
             cp /tmp/agent_deploy/deploy/*.sh /tmp/agent_deploy/deploy/playbooks.json /app/ai_monitor/
+            # Маркер деплоя — до перезапуска: агент прочитает его при старте и уведомит в Telegram
+            cp /tmp/agent_deploy/deploy_info.json /app/ai_monitor/deploy_info.json
             chmod +x /app/ai_monitor/*.sh
 
             # Проверка синтаксиса до перезапуска
